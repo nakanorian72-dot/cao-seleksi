@@ -1,4 +1,4 @@
-import { findStyled, containsStyled, evaluateVideos } from "./checks.js";
+import { findStyled, evaluateVideos } from "./checks.js";
 
 const $ = (id) => document.getElementById(id);
 let config = null;
@@ -186,7 +186,7 @@ function evaluateAccount(data) {
   const followers = Number(data.stats?.followers ?? data.stats?.followerCount ?? 0);
 
   const cnMatch = findStyled(nickname, cnList);
-  const missingBio = bioList.filter((item) => !containsStyled(bio, item));
+  const bioMatch = findStyled(bio, bioList);
   const videos = data.videos ?? data.items ?? data.itemList ?? [];
   const tagResult = evaluateVideos(videos, {
     nowMs: data.serverTime,
@@ -208,12 +208,12 @@ function evaluateAccount(data) {
     },
     {
       label: "Bio TikTok",
-      ok: bioList.length > 0 && missingBio.length === 0,
+      ok: bioList.length > 0 && Boolean(bioMatch),
       detail: bioList.length === 0
         ? "Teks bio wajib belum diatur admin."
-        : missingBio.length === 0
-          ? "Bio memuat semua teks wajib."
-          : `Bio belum memuat: ${missingBio.join(" · ")}`
+        : bioMatch
+          ? `Bio memuat: ${bioMatch}`
+          : "Bio belum memuat salah satu teks yang ditentukan."
     },
     {
       label: `Minimal followers (${minFollowers})`,
