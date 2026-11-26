@@ -18,7 +18,7 @@ export const CONFIG = {
   // CN diperiksa pada nickname TikTok (bukan username).
   // Masukkan beberapa pilihan CN jika semuanya diperbolehkan.
   requiredCN: [
-    "𝖋𝖙 𝙲𝙰𝙾᭄",
+    "𝖋𝖙 𝐂𝐀𝐎᭄",
     "𝐂𝐀𝐎",
     "𝑪𝑨𝑶࿐"
   ],
