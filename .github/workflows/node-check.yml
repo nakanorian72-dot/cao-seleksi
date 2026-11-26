@@ -1,0 +1,23 @@
+name: Check Node.js project
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check JavaScript syntax
+        run: |
+          node --check server.js
+          node --check config.js
+          node --check public/app.js
+          node --check public/checks.js
+          node --check api/tiktok.js
+          node --check api/config.js
+          
