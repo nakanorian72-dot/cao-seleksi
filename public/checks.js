@@ -115,14 +115,15 @@ export function formatAgo(ms) {
 
 // ---------- Evaluasi hashtag pada video terbaru ----------
 // Video yang dinilai: BUKAN pin, waktu upload diketahui, dan sudah >= minAgeMinutes lalu.
-// Diurutkan dari upload terbaru. Lulus jika salah satu dari `latestCount` video terbaru
-// memuat SEMUA hashtag wajib (default: video terbaru saja).
+// Diurutkan dari upload terbaru. Mode "any" (default): lulus jika video terbaru memuat
+// SALAH SATU hashtag wajib. Mode "all": harus memuat semuanya.
 export function evaluateVideos(videos, options) {
   const {
     nowMs = Date.now(),
     minAgeMinutes = 60,
     requiredHashtags = [],
-    latestCount = 1
+    latestCount = 1,
+    mode = "any"
   } = options || {};
 
   const required = [...new Set((requiredHashtags || []).map(normalizeTag).filter(Boolean))];
@@ -159,20 +160,24 @@ export function evaluateVideos(videos, options) {
   }
 
   const candidates = eligible.slice(0, Math.max(1, Number(latestCount) || 1));
-  const missingOf = (entry) => required.filter((tag) => !entry.tags.has(tag));
-  const winner = candidates.find((entry) => missingOf(entry).length === 0);
+  const matchedOf = (entry) => required.filter((tag) => entry.tags.has(tag));
+  const passes = (entry) => (mode === "all" ? matchedOf(entry).length === required.length : matchedOf(entry).length > 0);
+  const winner = candidates.find(passes);
   if (winner) {
+    const found = matchedOf(winner).map((tag) => `#${tag}`).join(", ");
     return {
       ok: true,
-      detail: `Video terbaru (diunggah ${formatAgo(nowMs - winner.ms)} lalu) memuat semua hashtag.`,
+      detail: `Video terbaru (diunggah ${formatAgo(nowMs - winner.ms)} lalu) memuat ${found}.`,
       stats
     };
   }
   const latest = candidates[0];
-  const missing = missingOf(latest).map((tag) => `#${tag}`).join(", ");
+  const wanted = required.map((tag) => `#${tag}`).join(", ");
   return {
     ok: false,
-    detail: `Video terbaru (diunggah ${formatAgo(nowMs - latest.ms)} lalu) belum memuat: ${missing}.`,
+    detail: mode === "all"
+      ? `Video terbaru (diunggah ${formatAgo(nowMs - latest.ms)} lalu) belum memuat semua hashtag: ${wanted}.`
+      : `Video terbaru (diunggah ${formatAgo(nowMs - latest.ms)} lalu) belum memuat salah satu hashtag: ${wanted}.`,
     stats
   };
 }
