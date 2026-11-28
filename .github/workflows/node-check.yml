@@ -19,5 +19,7 @@ jobs:
           node --check public/app.js
           node --check public/checks.js
           node --check api/tiktok.js
+          node --check lib/tiktok-scrape.js
           node --check api/config.js
+
           
