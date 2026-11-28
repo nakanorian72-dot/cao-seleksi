@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CONFIG } from "./config.js";
-import { getTikTokSelectionData } from "./lib/tiktok.js";
+import { scrapeTikTok, ScrapeError } from "./lib/tiktok-scrape.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -52,22 +52,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/tiktok") {
-      const apiKey = String(process.env.TIKTOK_API_KEY || "").trim();
-      if (!apiKey) {
-        return send(res, 500, { status: false, message: "API Key belum diatur. Isi TIKTOK_API_KEY di file .env." });
-      }
-
       let body;
       try { body = JSON.parse(await readBody(req)); }
-      catch { return send(res, 400, { status: false, message: "Format permintaan JSON tidak valid." }); }
-
-      const username = String(body?.username || body?.user || "").trim().replace(/^@+/, "");
-      if (!/^[A-Za-z0-9._]{2,24}$/.test(username)) {
-        return send(res, 400, { status: false, message: "Username TikTok tidak valid." });
-      }
-
-      const result = await getTikTokSelectionData(username, apiKey);
-      return send(res, 200, result);
+      catch { return send(res, 400, { status: false, message: "Format permintaan tidak valid. Kirim JSON berisi username." }); }
+      const data = await scrapeTikTok(String(body?.username || ""));
+      return send(res, 200, { status: true, data, serverTime: Date.now() });
     }
 
     if (req.method !== "GET") return send(res, 405, { message: "Method tidak diizinkan." });
@@ -86,11 +75,8 @@ const server = http.createServer(async (req, res) => {
       return send(res, 404, "File tidak ditemukan.", "text/plain; charset=utf-8");
     }
   } catch (error) {
-    const timeout = error?.name === "TimeoutError" || error?.name === "AbortError";
-    const message = timeout
-      ? "API TikTok terlalu lama merespons. Coba lagi."
-      : error?.message || "Terjadi kesalahan server.";
-    return send(res, timeout ? 504 : 502, { status: false, message });
+    const status = error instanceof ScrapeError ? error.status : 500;
+    return send(res, status, { status: false, message: error.message || "Terjadi kesalahan server." });
   }
 });
 
