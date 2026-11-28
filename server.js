@@ -3,11 +3,11 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CONFIG } from "./config.js";
+import { getTikTokSelectionData } from "./lib/tiktok.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
 const PORT = Number(process.env.PORT || 3000);
-const API_URL = "https://api.theresav.eu/api/stalk/tiktok";
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -57,30 +57,17 @@ const server = http.createServer(async (req, res) => {
         return send(res, 500, { status: false, message: "API Key belum diatur. Isi TIKTOK_API_KEY di file .env." });
       }
 
-      const body = JSON.parse(await readBody(req));
-      const username = String(body.username || "").trim().replace(/^@/, "");
-      if (!/^[\w.]{2,24}$/.test(username)) {
+      let body;
+      try { body = JSON.parse(await readBody(req)); }
+      catch { return send(res, 400, { status: false, message: "Format permintaan JSON tidak valid." }); }
+
+      const username = String(body?.username || body?.user || "").trim().replace(/^@+/, "");
+      if (!/^[A-Za-z0-9._]{2,24}$/.test(username)) {
         return send(res, 400, { status: false, message: "Username TikTok tidak valid." });
       }
 
-      const endpoint = new URL(API_URL);
-      endpoint.searchParams.set("username", username);
-
-      const upstream = await fetch(endpoint, {
-        method: "GET",
-        headers: { "x-apikey": apiKey, "Accept": "application/json" },
-        signal: AbortSignal.timeout(25000)
-      });
-
-      const raw = await upstream.text();
-      let data;
-      try { data = JSON.parse(raw); }
-      catch { return send(res, 502, { status: false, message: "API TikTok mengembalikan respons yang tidak valid." }); }
-
-      const payload = data && typeof data === "object" && !Array.isArray(data)
-        ? { ...data, serverTime: Date.now() }
-        : data;
-      return send(res, upstream.ok ? 200 : upstream.status, payload);
+      const result = await getTikTokSelectionData(username, apiKey);
+      return send(res, 200, result);
     }
 
     if (req.method !== "GET") return send(res, 405, { message: "Method tidak diizinkan." });
@@ -99,10 +86,11 @@ const server = http.createServer(async (req, res) => {
       return send(res, 404, "File tidak ditemukan.", "text/plain; charset=utf-8");
     }
   } catch (error) {
-    const message = error.name === "TimeoutError"
+    const timeout = error?.name === "TimeoutError" || error?.name === "AbortError";
+    const message = timeout
       ? "API TikTok terlalu lama merespons. Coba lagi."
-      : error.message || "Terjadi kesalahan server.";
-    return send(res, 500, { status: false, message });
+      : error?.message || "Terjadi kesalahan server.";
+    return send(res, timeout ? 504 : 502, { status: false, message });
   }
 });
 
